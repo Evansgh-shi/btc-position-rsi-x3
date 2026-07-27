@@ -1,0 +1,157 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap");
+
+:root {
+  color-scheme: dark;
+  --bg: #070b10;
+  --panel: #0d131b;
+  --panel-2: #111923;
+  --line: #202b38;
+  --muted: #7f8d9e;
+  --text: #f1f5f7;
+  --gold: #f4bd50;
+  --green: #54d6aa;
+  --red: #f26670;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 83% 7%, rgba(244, 189, 80, .08), transparent 26rem),
+    linear-gradient(180deg, #080c12, var(--bg));
+  color: var(--text);
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+}
+button, a { font: inherit; }
+.app { width: min(1220px, calc(100% - 40px)); margin: 0 auto; min-height: 100vh; }
+header {
+  height: 76px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10;
+  background: rgba(7, 11, 16, .86); backdrop-filter: blur(18px);
+}
+.brand { display: flex; align-items: center; gap: 11px; letter-spacing: .12em; }
+.brand > span, .coin { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%; background: var(--gold); color: #191207; font-weight: 800; }
+.brand b { font: 500 14px "DM Mono", monospace; }
+nav { display: flex; gap: 36px; }
+nav a { color: var(--muted); font-size: 13px; text-decoration: none; transition: .2s; }
+nav a:hover { color: var(--text); }
+.status { display: flex; align-items: center; gap: 10px; color: var(--muted); font: 12px "DM Mono", monospace; }
+.live { font-style: normal; color: var(--green); font: 500 11px "DM Mono", monospace; letter-spacing: .14em; display: flex; align-items: center; gap: 6px; }
+.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse 1.8s infinite; }
+.demo { color: var(--gold); font: 500 11px "DM Mono", monospace; font-style: normal; letter-spacing: .14em; }
+@keyframes pulse { 50% { opacity: .35; } }
+
+.hero { padding: 58px 0 78px; }
+.data-notice { margin: -27px 0 28px; padding: 10px 13px; border: 1px solid rgba(244,189,80,.22); background: rgba(244,189,80,.06); color: #d8b774; border-radius: 7px; font-size: 11px; }
+.hero-title, .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+.hero-title p, .section-head p, .method-copy > p { color: var(--gold); font: 500 11px "DM Mono", monospace; letter-spacing: .2em; margin: 0 0 12px; }
+h1, h2, p { margin-top: 0; }
+h1 { font-size: clamp(32px, 4vw, 54px); letter-spacing: -.055em; line-height: 1.12; margin-bottom: 0; }
+.trend { padding: 9px 13px; border: 1px solid; border-radius: 100px; font-size: 12px; }
+.trend.up { color: var(--green); border-color: rgba(84, 214, 170, .28); background: rgba(84, 214, 170, .06); }
+.trend.down { color: var(--red); border-color: rgba(242, 102, 112, .28); background: rgba(242, 102, 112, .06); }
+.overview-grid { display: grid; grid-template-columns: .82fr 1.18fr; gap: 18px; }
+.gauge-card, .price-card, .chart-card {
+  background: linear-gradient(145deg, rgba(17, 25, 35, .96), rgba(10, 16, 23, .96));
+  border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .2);
+}
+.gauge-card { padding: 25px 28px 24px; }
+.card-kicker { display: flex; justify-content: space-between; align-items: center; }
+.card-kicker span { font-weight: 600; font-size: 14px; }
+.card-kicker i { color: var(--muted); font: 10px "DM Mono", monospace; font-style: normal; }
+.gauge-wrap { position: relative; height: 262px; margin-top: 3px; }
+.gauge { width: 100%; height: 100%; overflow: visible; }
+.gauge-track, .gauge-value { fill: none; stroke-width: 15; stroke-linecap: round; }
+.gauge-track { stroke: #1b2632; }
+.gauge-value { stroke: url(#gaugeGradient); }
+.needle-shadow { stroke: rgba(244,189,80,.3); stroke-width: 7; filter: url(#glow); }
+.needle { stroke: #f5f7f8; stroke-width: 2; }
+.needle-pin { fill: #f5f7f8; stroke: #1d2733; stroke-width: 4; }
+.gauge-label { fill: #637183; font: 10px "DM Mono"; }
+.gauge-number { position: absolute; inset: 132px 0 auto; text-align: center; display: flex; flex-direction: column; }
+.gauge-number strong { font: 500 44px "DM Mono"; letter-spacing: -.06em; }
+.gauge-number strong span { font-size: 19px; color: var(--muted); margin-left: 3px; }
+.gauge-number small { color: var(--muted); font-size: 11px; margin-top: 5px; }
+.allocation { height: 5px; background: #1b2632; border-radius: 5px; overflow: hidden; }
+.allocation span { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), var(--green)); border-radius: inherit; }
+.allocation-label { display: flex; justify-content: space-between; font: 11px "DM Mono"; margin-top: 10px; }
+.allocation-label b { color: var(--green); }.allocation-label span { color: var(--muted); }
+
+.price-card { padding: 29px 32px; }
+.asset-line { display: flex; align-items: center; gap: 12px; }
+.asset-line > div { display: flex; flex-direction: column; }
+.asset-line b { font-size: 15px; }.asset-line small { color: var(--muted); font: 10px "DM Mono"; margin-top: 3px; }
+.asset-line > i { margin-left: auto; color: var(--gold); border: 1px solid rgba(244,189,80,.25); border-radius: 4px; padding: 5px 7px; font: 9px "DM Mono"; font-style: normal; letter-spacing: .12em; }
+.price-line { display: flex; align-items: center; gap: 15px; margin-top: 25px; }
+.price-line h2 { font: 500 clamp(34px, 4vw, 50px) "DM Mono"; letter-spacing: -.06em; margin: 0; }
+.price-line > span { font: 500 13px "DM Mono"; padding: 5px 8px; border-radius: 5px; }
+.positive { color: var(--green); background: rgba(84,214,170,.08); }
+.negative { color: var(--red); background: rgba(242,102,112,.08); }
+.price-range { display: flex; gap: 23px; color: var(--muted); font: 10px "DM Mono"; margin-top: 12px; }
+.price-range b { color: #b3bdc8; font-weight: 400; margin-left: 4px; }
+.metrics { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 32px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.metrics > div { padding: 19px 14px 19px 0; display: flex; flex-direction: column; }
+.metrics > div + div { border-left: 1px solid var(--line); padding-left: 19px; }
+.metrics span { color: var(--muted); font-size: 10px; }.metrics b { font: 500 22px "DM Mono"; margin: 7px 0 3px; }.metrics small { color: #8997a7; font-size: 10px; }
+.formula { margin-top: 21px; display: flex; align-items: center; justify-content: space-between; }
+.formula > span { color: var(--muted); font-size: 11px; }
+.formula code { font: 12px "DM Mono"; color: #aab4bf; background: #080e14; padding: 10px 13px; border-radius: 6px; }
+.formula code b { color: var(--gold); }
+
+.history-section { padding: 74px 0; border-top: 1px solid var(--line); }
+.section-head h2, .method-copy h2 { font-size: 31px; margin: 0; letter-spacing: -.04em; }
+.range-tabs { background: #0b1118; padding: 4px; border: 1px solid var(--line); border-radius: 8px; }
+.range-tabs button { background: transparent; color: var(--muted); border: 0; padding: 7px 12px; font-size: 11px; cursor: pointer; border-radius: 5px; }
+.range-tabs button.active { background: #1c2733; color: var(--text); }
+.chart-card { padding: 21px 23px 15px; }
+.legend { display: flex; align-items: center; gap: 22px; font-size: 11px; color: #b6c0ca; }
+.legend span::before { content: ""; width: 8px; height: 2px; display: inline-block; margin-right: 7px; vertical-align: middle; }
+.legend .price-dot::before { background: var(--gold); }.legend .position-dot::before { background: var(--green); }
+.legend i { margin-left: auto; color: var(--muted); font-style: normal; }
+.chart-shell { position: relative; height: 350px; margin-top: 13px; }
+.chart-shell canvas { width: 100%; height: 100%; cursor: crosshair; }
+.chart-tooltip { position: absolute; top: 8px; right: 10px; display: flex; gap: 12px; align-items: center; background: rgba(7,11,16,.83); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; pointer-events: none; font: 10px "DM Mono"; }
+.chart-tooltip span { color: var(--muted); }.chart-tooltip b { color: var(--gold); }.chart-tooltip em { color: var(--green); font-style: normal; }
+.axis-labels { display: flex; justify-content: space-between; color: #5d6a78; font: 9px "DM Mono"; }
+
+.method-section { display: grid; grid-template-columns: .8fr 1.2fr; gap: 70px; padding: 75px 0 90px; border-top: 1px solid var(--line); }
+.method-copy > span { color: var(--muted); font-size: 13px; line-height: 1.9; display: block; max-width: 410px; margin-top: 20px; }
+.steps { border-top: 1px solid var(--line); }
+.steps > div { display: grid; grid-template-columns: 44px 130px 1fr; align-items: center; min-height: 85px; border-bottom: 1px solid var(--line); }
+.steps i { color: var(--gold); font: 11px "DM Mono"; font-style: normal; }.steps b { font-size: 13px; }.steps span { color: var(--muted); font-size: 12px; }
+footer { min-height: 104px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+footer > div { display: flex; flex-direction: column; gap: 7px; } footer b { color: var(--text); font: 12px "DM Mono"; letter-spacing: .1em; } footer p { margin: 0; }
+
+.loading-card { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.loading-card h1 { font-size: 28px; margin-top: 20px; }.loading-card p { color: var(--muted); font-size: 13px; }
+.loader { width: 54px; height: 54px; border: 2px solid #1e2935; border-top-color: var(--gold); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-card.error > span { display: grid; place-items: center; width: 45px; height: 45px; border: 1px solid var(--red); color: var(--red); border-radius: 50%; font: 20px "DM Mono"; }
+.loading-card button { border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 9px 14px; border-radius: 6px; cursor: pointer; }
+
+@media (max-width: 860px) {
+  .app { width: min(100% - 24px, 720px); }
+  nav { display: none; }
+  .hero { padding-top: 38px; }
+  .hero-title { align-items: flex-start; gap: 25px; flex-direction: column; }
+  .overview-grid, .method-section { grid-template-columns: 1fr; }
+  .method-section { gap: 35px; }
+  .gauge-card { order: 2; }.price-card { order: 1; }
+}
+@media (max-width: 560px) {
+  header { height: 64px; }.status > span { display: none; }
+  h1 { font-size: 35px; }
+  .price-card, .gauge-card { padding: 22px 18px; }
+  .price-line { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .metrics { grid-template-columns: 1fr; }
+  .metrics > div + div { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
+  .formula { align-items: flex-start; flex-direction: column; gap: 9px; }
+  .formula code { width: 100%; font-size: 10px; overflow: auto; }
+  .section-head { align-items: flex-start; flex-direction: column; gap: 20px; }
+  .legend i, .chart-tooltip span { display: none; }
+  .chart-shell { height: 290px; }
+  .steps > div { grid-template-columns: 35px 100px 1fr; }
+  footer { align-items: flex-start; padding: 25px 0; flex-direction: column; gap: 18px; }
+}

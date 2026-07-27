@@ -1,0 +1,22 @@
+{
+  "name": "btc-position-rsi-x3",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "build:worker": "opennextjs-cloudflare build"
+  },
+  "dependencies": {
+    "next": "^15.4.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "^1.6.5",
+    "@types/node": "20.17.6",
+    "@types/react": "19.2.17",
+    "typescript": "^5.8.3"
+  }
+}

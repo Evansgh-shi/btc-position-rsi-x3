@@ -1,0 +1,9 @@
+allowBuilds:
+  agent-browser: true
+  esbuild: true
+  sharp: true
+  workerd: true
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
