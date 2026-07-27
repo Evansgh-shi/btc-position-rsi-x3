@@ -1,34 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-
-type Point = {
-  date: string;
-  price: number;
-  position: number;
-  rsi: number;
-  fear: number;
-  ma200: number | null;
-  trend: "up" | "down";
-};
-
-type MarketData = {
-  current: Point & {
-    change24h: number;
-    high24h: number;
-    low24h: number;
-    rsiFrame: string;
-    z: number;
-  };
-  history: Point[];
-  meta: {
-    priceSource: string;
-    fearSource: string;
-    updatedAt: string;
-    formula: string;
-    degraded: boolean;
-  };
-};
+import { fetchMarketData, type MarketData, type Point } from "../lib/market";
 
 const ranges = [
   { label: "30天", days: 30 },
@@ -197,10 +170,8 @@ export default function Home() {
   const [range, setRange] = useState(90);
 
   useEffect(() => {
-    const load = () => fetch("/api/market")
-      .then(async (r) => {
-        const body = await r.json();
-        if (!r.ok) throw new Error(body.detail || body.error);
+    const load = () => fetchMarketData()
+      .then((body) => {
         setMarket(body);
         setError("");
       })

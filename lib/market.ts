@@ -1,11 +1,32 @@
-import { NextResponse } from "next/server";
+export type Point = {
+  date: string;
+  price: number;
+  position: number;
+  rsi: number;
+  fear: number;
+  ma200: number | null;
+  trend: "up" | "down";
+};
 
-export const dynamic = "force-dynamic";
+export type MarketData = {
+  current: Point & {
+    change24h: number;
+    high24h: number;
+    low24h: number;
+    rsiFrame: string;
+    z: number;
+  };
+  history: Point[];
+  meta: {
+    priceSource: string;
+    fearSource: string;
+    updatedAt: string;
+    formula: string;
+    degraded: boolean;
+  };
+};
 
 type Kline = [number, string, string, string, string, ...unknown[]];
-
-const BINANCE = "https://api.binance.com";
-const FEAR_GREED = "https://api.alternative.me/fng/";
 
 function rsi(values: number[], period = 14): number | null {
   if (values.length <= period) return null;
@@ -18,8 +39,7 @@ function rsi(values: number[], period = 14): number | null {
     else loss -= delta;
   }
   if (loss === 0) return 100;
-  const rs = gain / loss;
-  return 100 - 100 / (1 + rs);
+  return 100 - 100 / (1 + gain / loss);
 }
 
 function normalCdf(x: number): number {
@@ -32,10 +52,6 @@ function normalCdf(x: number): number {
 
 function avg(values: number[]) {
   return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-function toDailyRows(klines: Kline[]) {
-  return klines.map((k) => ({ time: Number(k[0]), price: Number(k[4]) }));
 }
 
 function periodCloses(rows: { time: number; price: number }[], end: number, mode: "week" | "month") {
@@ -58,31 +74,57 @@ function periodCloses(rows: { time: number; price: number }[], end: number, mode
 }
 
 async function fetchJson(url: string) {
-  const response = await fetch(url, {
-    headers: { "User-Agent": "btc-position-dashboard/1.0" },
-    cache: "no-store",
-    signal: AbortSignal.timeout(9000),
-  });
+  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(9000) });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.json();
 }
 
-function demoPayload() {
+function calculateHistory(rows: { time: number; price: number }[], fearItems: { timestamp: string; value: string }[]) {
+  const fearByDay = new Map<string, number>(
+    fearItems.map((item) => [
+      new Date(Number(item.timestamp) * 1000).toISOString().slice(0, 10),
+      Number(item.value),
+    ]),
+  );
+  let lastFear = 50;
+  return rows.slice(-366).map((row, visibleIndex) => {
+    const absoluteIndex = rows.length - 366 + visibleIndex;
+    const date = new Date(row.time).toISOString().slice(0, 10);
+    const exactFear = fearByDay.get(date);
+    if (exactFear !== undefined) lastFear = exactFear;
+    const prior = rows.slice(0, absoluteIndex + 1);
+    const ma200 = absoluteIndex >= 199
+      ? avg(rows.slice(absoluteIndex - 199, absoluteIndex + 1).map((d) => d.price))
+      : null;
+    const trend: "up" | "down" = ma200 !== null && row.price >= ma200 ? "up" : "down";
+    const closes = periodCloses(prior, row.time, trend === "up" ? "month" : "week");
+    const activeRsi = rsi(closes) ?? 50;
+    const z = (100 - activeRsi - lastFear) * .03;
+    return {
+      date,
+      price: Math.round(row.price * 100) / 100,
+      position: Math.round(normalCdf(z) * 10000) / 100,
+      rsi: Math.round(activeRsi * 10) / 10,
+      fear: lastFear,
+      ma200: ma200 ? Math.round(ma200 * 100) / 100 : null,
+      trend,
+    };
+  });
+}
+
+function demoPayload(): MarketData {
   const count = 566;
   const now = new Date();
   const rows = Array.from({ length: count }, (_, i) => {
     const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (count - 1 - i)));
-    const drift = i * 15;
-    const wave = Math.sin(i / 19) * 5200 + Math.sin(i / 53) * 8300;
-    return { time: date.getTime(), price: Math.max(18000, 47500 + drift + wave) };
+    return { time: date.getTime(), price: Math.max(18000, 47500 + i * 15 + Math.sin(i / 19) * 5200 + Math.sin(i / 53) * 8300) };
   });
   const history = rows.slice(-366).map((row, visibleIndex) => {
     const absoluteIndex = rows.length - 366 + visibleIndex;
     const prior = rows.slice(0, absoluteIndex + 1);
     const ma200 = avg(rows.slice(absoluteIndex - 199, absoluteIndex + 1).map((d) => d.price));
     const trend: "up" | "down" = row.price >= ma200 ? "up" : "down";
-    const closes = periodCloses(prior, row.time, trend === "up" ? "month" : "week");
-    const activeRsi = rsi(closes) ?? 50;
+    const activeRsi = rsi(periodCloses(prior, row.time, trend === "up" ? "month" : "week")) ?? 50;
     const fear = Math.round(Math.max(8, Math.min(92, 50 + Math.sin(absoluteIndex / 13) * 27 - (activeRsi - 50) * .25)));
     const z = (100 - activeRsi - fear) * .03;
     return {
@@ -116,59 +158,25 @@ function demoPayload() {
   };
 }
 
-export async function GET() {
+export async function fetchMarketData(): Promise<MarketData> {
   try {
     const [dailyRaw, priceRaw, fearRaw] = await Promise.all([
-      fetchJson(`${BINANCE}/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=900`),
-      fetchJson(`${BINANCE}/api/v3/ticker/24hr?symbol=BTCUSDT`),
-      fetchJson(`${FEAR_GREED}?limit=366&format=json`),
+      fetchJson("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=900"),
+      fetchJson("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT"),
+      fetchJson("https://api.alternative.me/fng/?limit=366&format=json"),
     ]);
-
-    const rows = toDailyRows(dailyRaw as Kline[]);
-    const fearItems = Array.isArray(fearRaw?.data) ? fearRaw.data : [];
-    const fearByDay = new Map<string, number>(
-      fearItems.map((item: { timestamp: string; value: string }) => [
-        new Date(Number(item.timestamp) * 1000).toISOString().slice(0, 10),
-        Number(item.value),
-      ]),
-    );
-
-    let lastFear = 50;
-    const history = rows.slice(-366).map((row, visibleIndex) => {
-      const absoluteIndex = rows.length - 366 + visibleIndex;
-      const date = new Date(row.time).toISOString().slice(0, 10);
-      const exactFear = fearByDay.get(date);
-      if (exactFear !== undefined) lastFear = exactFear;
-      const fear = exactFear ?? lastFear;
-      const prior = rows.slice(0, absoluteIndex + 1);
-      const ma200 = absoluteIndex >= 199
-        ? avg(rows.slice(absoluteIndex - 199, absoluteIndex + 1).map((d) => d.price))
-        : null;
-      const trend: "up" | "down" = ma200 !== null && row.price >= ma200 ? "up" : "down";
-      const closes = periodCloses(prior, row.time, trend === "up" ? "month" : "week");
-      const activeRsi = rsi(closes) ?? 50;
-      const z = (100 - activeRsi - fear) * 0.03;
-      return {
-        date,
-        price: Math.round(row.price * 100) / 100,
-        position: Math.round(normalCdf(z) * 10000) / 100,
-        rsi: Math.round(activeRsi * 10) / 10,
-        fear,
-        ma200: ma200 ? Math.round(ma200 * 100) / 100 : null,
-        trend,
-      };
-    });
-
-    const current = history.at(-1);
-    return NextResponse.json({
+    const rows = (dailyRaw as Kline[]).map((k) => ({ time: Number(k[0]), price: Number(k[4]) }));
+    const history = calculateHistory(rows, Array.isArray(fearRaw?.data) ? fearRaw.data : []);
+    const current = history.at(-1)!;
+    return {
       current: {
         ...current,
         price: Number(priceRaw.lastPrice),
         change24h: Number(priceRaw.priceChangePercent),
         high24h: Number(priceRaw.highPrice),
         low24h: Number(priceRaw.lowPrice),
-        rsiFrame: current?.trend === "up" ? "月线 RSI(14)" : "周线 RSI(14)",
-        z: current ? Math.round((100 - current.rsi - current.fear) * 0.03 * 1000) / 1000 : null,
+        rsiFrame: current.trend === "up" ? "月线 RSI(14)" : "周线 RSI(14)",
+        z: Math.round((100 - current.rsi - current.fear) * .03 * 1000) / 1000,
       },
       history,
       meta: {
@@ -178,15 +186,8 @@ export async function GET() {
         formula: "Φ((100 − RSI − 恐贪指数) × 0.03)",
         degraded: false,
       },
-    }, {
-      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
-    });
-  } catch (error) {
-    return NextResponse.json(demoPayload(), {
-      headers: {
-        "Cache-Control": "no-store",
-        "X-Market-Fallback": error instanceof Error ? error.name : "Unknown",
-      },
-    });
+    };
+  } catch {
+    return demoPayload();
   }
 }
