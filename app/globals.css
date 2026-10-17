@@ -40,6 +40,9 @@ nav a:hover { color: var(--text); }
 .live { font-style: normal; color: var(--green); font: 500 11px "DM Mono", monospace; letter-spacing: .14em; display: flex; align-items: center; gap: 6px; }
 .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse 1.8s infinite; }
 .demo { color: var(--gold); font: 500 11px "DM Mono", monospace; font-style: normal; letter-spacing: .14em; }
+.refresh-button { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; color: var(--text); cursor: pointer; padding: 6px 10px; font-size: 11px; }
+.refresh-button:disabled { opacity: .5; cursor: wait; }
+.data-notice.stale { border-color: var(--red); color: #f7b1b8; }
 @keyframes pulse { 50% { opacity: .35; } }
 
 .hero { padding: 58px 0 78px; }
