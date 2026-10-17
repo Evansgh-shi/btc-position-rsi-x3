@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/prepare-dist.mjs",
+    "refresh:market": "node scripts/refresh-market.mjs",
+    "test": "node --test tests/*.test.mjs",
     "start": "next dev"
   },
   "dependencies": {
