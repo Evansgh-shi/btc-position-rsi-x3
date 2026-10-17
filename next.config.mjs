@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
-const isGitHubPages = process.env.GITHUB_ACTIONS === "true";
+const basePath = process.env.DEPLOY_TARGET === "github" ? "/btc-position-rsi-x3" : "";
 
 const nextConfig = {
   poweredByHeader: false,
   output: "export",
-  basePath: isGitHubPages ? "/btc-position-rsi-x3" : "",
+  basePath,
+  env: { NEXT_PUBLIC_BASE_PATH: basePath },
 };
 
 export default nextConfig;
