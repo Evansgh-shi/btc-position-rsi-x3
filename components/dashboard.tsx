@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchMarketData, type MarketData, type Point } from "../lib/market";
+import { copy, rangeLabel, rangeOptions, type Language } from "../lib/i18n";
+import { chartWindow, zoomWindow, moveWindow, type ChartView } from "../lib/chart-window.mjs";
 
-const ranges = [{ label: "30天", days: 30 }, { label: "90天", days: 90 }, { label: "半年", days: 180 }, { label: "1年", days: 365 }];
-const sections = [{ id: "overview", label: "市场概览", icon: "grid" }, { id: "history", label: "价格与仓位", icon: "chart" }, { id: "method", label: "模型说明", icon: "layers" }];
+const sections = [{ id: "overview", icon: "grid" }, { id: "history", icon: "chart" }, { id: "method", icon: "layers" }] as const;
 
 function Icon({ name, className = "" }: { name: string; className?: string }) {
   const paths: Record<string, React.ReactNode> = {
@@ -22,11 +23,12 @@ function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 }
 
-function Gauge({ value }: { value: number }) {
+function Gauge({ value, language }: { value: number; language: Language }) {
+  const t = copy[language];
   const clamped = Math.max(0, Math.min(100, value));
   const angle = -135 + clamped * 2.7;
   return <div className="gauge-wrap">
-    <svg className="gauge" viewBox="0 0 320 260" role="img" aria-label={`模型参考仓位 ${clamped.toFixed(1)}%`}>
+    <svg className="gauge" viewBox="0 0 320 260" role="img" aria-label={`${t.position} ${clamped.toFixed(1)}%`}>
       <defs>
         <linearGradient id="gaugeGradient"><stop offset="0%" stopColor="#b78f59" /><stop offset="100%" stopColor="#ead3a4" /></linearGradient>
         <radialGradient id="gaugeHalo"><stop offset="0%" stopColor="#d4b781" stopOpacity=".07" /><stop offset="100%" stopColor="#d4b781" stopOpacity="0" /></radialGradient>
@@ -43,14 +45,16 @@ function Gauge({ value }: { value: number }) {
       <circle cx="160" cy="146" r="6" className="needle-pin" />
       <text x="64" y="246" className="gauge-label">0%</text><text x="231" y="246" className="gauge-label">100%</text>
     </svg>
-    <div className="gauge-number"><strong>{clamped.toFixed(1)}<span>%</span></strong><small>模型参考仓位</small></div>
+    <div className="gauge-number"><strong>{clamped.toFixed(1)}<span>%</span></strong><small>{t.position}</small></div>
   </div>;
 }
 
-function TrendChart({ data }: { data: Point[] }) {
+function TrendChart({ data, language }: { data: Point[]; language: Language }) {
+  const t = copy[language];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  useEffect(() => setHover(null), [data]);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -65,21 +69,22 @@ function TrendChart({ data }: { data: Point[] }) {
     const { width, height } = size, dpr = window.devicePixelRatio || 1;
     canvas.width = width * dpr; canvas.height = height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const pad = { l: width > 600 ? 64 : 52, r: width > 600 ? 46 : 34, t: 20, b: 38 };
+    const pad = { l: width > 600 ? 76 : 58, r: width > 600 ? 56 : 45, t: 20, b: 42 };
     const chartW = width - pad.l - pad.r, chartH = height - pad.t - pad.b;
     const prices = data.map(d => d.price);
     const min = Math.min(...prices) * .97, max = Math.max(...prices) * 1.03;
-    const x = (i: number) => pad.l + i / (data.length - 1) * chartW;
+    const times = data.map(p => Date.parse(p.date));
+    const x = (i: number) => pad.l + (times[i] - times[0]) / (times.at(-1)! - times[0] || 1) * chartW;
     const yp = (price: number) => pad.t + (1 - (price - min) / (max - min || 1)) * chartH;
     const yv = (position: number) => pad.t + (1 - position / 100) * chartH;
     ctx.clearRect(0, 0, width, height);
-    ctx.font = "10px ui-monospace, monospace";
+    ctx.font = "12px ui-monospace, monospace";
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = pad.t + chartH * i / 4;
       ctx.strokeStyle = "rgba(156,166,177,.10)"; ctx.setLineDash([3, 5]);
       ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(width - pad.r, y); ctx.stroke();
-      ctx.fillStyle = "#7e8793"; ctx.textAlign = "right";
+      ctx.fillStyle = "#a0aab7"; ctx.textAlign = "right";
       ctx.fillText(`$${((max - (max - min) * i / 4) / 1000).toFixed(1)}k`, pad.l - 12, y + 4);
       ctx.textAlign = "left"; ctx.fillText(`${100 - i * 25}%`, width - pad.r + 10, y + 4);
     }
@@ -88,7 +93,8 @@ function TrendChart({ data }: { data: Point[] }) {
     for (let i = 0; i <= labels; i++) {
       const index = Math.round(i / labels * (data.length - 1));
       ctx.textAlign = i === 0 ? "left" : i === labels ? "right" : "center";
-      ctx.fillText(data[index].date.slice(5).replace("-", "/"), x(index), height - 10);
+      const longRange = times.at(-1)! - times[0] > 300 * 86400000;
+      ctx.fillText(longRange ? data[index].date.slice(0, 7) : data[index].date.slice(5).replace("-", "/"), x(index), height - 12);
     }
     const gradient = ctx.createLinearGradient(0, pad.t, 0, height - pad.b);
     gradient.addColorStop(0, "rgba(212,183,129,.13)"); gradient.addColorStop(1, "rgba(212,183,129,0)");
@@ -111,12 +117,16 @@ function TrendChart({ data }: { data: Point[] }) {
 
   const active = data[hover ?? data.length - 1] ?? data.at(-1);
   return <>
-    {active && <div className="chart-readout" aria-live="polite"><time>{active.date}</time><span><i className="price-dot" />BTC 价格 <b>{money(active.price)}</b></span><span><i className="position-dot" />参考仓位 <b>{active.position.toFixed(1)}%</b></span></div>}
-    <div className="chart-shell"><canvas ref={canvasRef} role="img" tabIndex={0} aria-label="BTC 价格与仓位双轴图。左轴为美元，右轴为仓位。可用左右方向键查看日期。"
+    {active && <div className="chart-readout" aria-live="polite"><time dateTime={active.date}>{active.date}</time><span><i className="price-dot" />{t.price} <b>{money(active.price)}</b></span><span><i className="position-dot" />{t.allocation} <b>{active.position.toFixed(1)}%</b></span></div>}
+    <div className="chart-shell"><canvas ref={canvasRef} role="img" tabIndex={0} aria-label={t.chartAria}
       onPointerMove={event => {
         const rect = event.currentTarget.getBoundingClientRect();
-        const l = rect.width > 600 ? 64 : 52, r = rect.width > 600 ? 46 : 34;
-        setHover(Math.max(0, Math.min(data.length - 1, Math.round((event.clientX - rect.left - l) / (rect.width - l - r) * (data.length - 1)))));
+        const l = rect.width > 600 ? 76 : 58, r = rect.width > 600 ? 56 : 45;
+        const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left - l) / (rect.width - l - r)));
+        const target = Date.parse(data[0].date) + fraction * (Date.parse(data.at(-1)!.date) - Date.parse(data[0].date));
+        let lo = 0, hi = data.length - 1;
+        while (lo < hi) { const mid = Math.floor((lo + hi) / 2); if (Date.parse(data[mid].date) < target) lo = mid + 1; else hi = mid; }
+        setHover(lo > 0 && target - Date.parse(data[lo - 1].date) < Date.parse(data[lo].date) - target ? lo - 1 : lo);
       }}
       onPointerLeave={() => setHover(null)}
       onKeyDown={event => {
@@ -130,10 +140,23 @@ function TrendChart({ data }: { data: Point[] }) {
 export default function Dashboard({ initialData }: { initialData: MarketData }) {
   const [market, setMarket] = useState<MarketData>(initialData);
   const [error, setError] = useState("");
-  const [range, setRange] = useState(90);
+  const [language, setLanguage] = useState<Language>("zh");
+  const [view, setView] = useState<ChartView>({ count: 90, end: null });
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(Date.parse(initialData.meta.updatedAt));
   const [section, setSection] = useState("overview");
+  const t = copy[language];
+  useEffect(() => {
+    try { if (localStorage.getItem("btc-dashboard-language") === "en") setLanguage("en"); } catch { /* Storage may be disabled. */ }
+  }, []);
+  useEffect(() => {
+    document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+    document.title = copy[language].dashboard;
+  }, [language]);
+  const changeLanguage = (next: Language) => {
+    setLanguage(next);
+    try { localStorage.setItem("btc-dashboard-language", next); } catch { /* The current session still works. */ }
+  };
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -162,35 +185,56 @@ export default function Dashboard({ initialData }: { initialData: MarketData }) 
     for (const item of sections) { const element = document.getElementById(item.id); if (element) observer.observe(element); }
     return () => observer.disconnect();
   }, []);
-  const chartData = useMemo(() => market.history.slice(-range), [market, range]);
+  const total = market.history.length;
+  const { start, end } = chartWindow(total, view);
+  const visibleCount = end - start + 1;
+  const chartData = useMemo(() => market.history.slice(start, end + 1), [market.history, start, end]);
   const stale = now - Date.parse(market.meta.updatedAt) > 6 * 60 * 60 * 1000;
-  const updatedLabel = new Date(market.meta.updatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
+  const updatedLabel = new Date(market.meta.updatedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-GB", { timeZone: "Asia/Shanghai", hour12: false });
   const c = market.current, positive = c.change24h >= 0;
-  const fearLabel = c.fear < 25 ? "极度恐惧" : c.fear < 45 ? "恐惧" : c.fear < 56 ? "中性" : c.fear < 75 ? "贪婪" : "极度贪婪";
+  const fearLabel = c.fear < 25 ? t.extremeFear : c.fear < 45 ? t.fear : c.fear < 56 ? t.neutralFear : c.fear < 75 ? t.greed : t.extremeGreed;
+  const rsiFrame = c.trend === "up" ? t.monthlyRsi : t.weeklyRsi;
   return <div className="app">
-    <a className="skip-link" href="#overview">跳转至市场概览</a>
+    <a className="skip-link" href="#overview">{t.skip}</a>
     <aside className="sidebar">
       <a className="brand" href="#overview"><span className="brand-mark">₿</span><span><b>POSITION</b><small>BITCOIN OBSERVATORY</small></span></a>
-      <div className="sidebar-label">工作台 <span>01 — 03</span></div>
-      <nav className="side-nav" aria-label="主导航">{sections.map(item => <a key={item.id} href={`#${item.id}`} aria-label={item.label} title={item.label} aria-current={section === item.id ? "location" : undefined} onClick={() => setSection(item.id)}><Icon name={item.icon} /><span>{item.label}</span><i /></a>)}</nav>
-      <div className="sidebar-bottom"><span className="small-bitcoin">₿</span><b>少一点情绪，<br />多一份依据。</b><p>趋势 · 动量 · 市场情绪</p><div><Icon name="shield" /><span>公开数据 · 透明计算</span></div></div>
+      <div className="sidebar-label">{t.workspace} <span>01 — 03</span></div>
+      <nav className="side-nav" aria-label={t.navigation}>{sections.map(item => <a key={item.id} href={`#${item.id}`} aria-label={t[item.id]} title={t[item.id]} aria-current={section === item.id ? "location" : undefined} onClick={() => setSection(item.id)}><Icon name={item.icon} /><span>{t[item.id]}</span><i /></a>)}</nav>
+      <div className="sidebar-bottom"><span className="small-bitcoin">₿</span><b>{t.motto}</b><p>{t.signals}</p><div><Icon name="shield" /><span>{t.transparent}</span></div></div>
     </aside>
     <div className="main-content">
-      <header className="topbar"><div className="breadcrumb"><span>工作台</span><i>/</i><b>BTC 仓位仪表盘</b></div><div className="status"><i className={stale ? "demo" : "live"}>{stale ? "行情待更新" : "真实行情"}</i><button className="refresh-button" disabled={refreshing} onClick={refresh}><Icon name="refresh" className={refreshing ? "spinning" : ""} /><span>{refreshing ? "刷新中…" : "刷新"}</span></button></div></header>
+      <header className="topbar"><div className="breadcrumb"><span>{t.workspace}</span><i>/</i><b>{t.dashboard}</b></div><div className="status"><i className={stale ? "demo" : "live"}>{stale ? t.delayed : t.live}</i><div className="language-switch" role="group" aria-label={t.language}>{(["zh", "en"] as const).map(lang => <button key={lang} lang={lang} aria-pressed={language === lang} onClick={() => changeLanguage(lang)}>{lang === "zh" ? "中文" : "EN"}</button>)}</div><button className="refresh-button" disabled={refreshing} onClick={refresh} aria-label={t.refresh}><Icon name="refresh" className={refreshing ? "spinning" : ""} /><span>{refreshing ? t.refreshing : t.refresh}</span></button></div></header>
       <main>
         <section className="hero" id="overview">
-          <div className="hero-title"><div><p className="eyebrow"><span />BITCOIN POSITION MODEL</p><h1>让每一份仓位，都有依据<span>。</span></h1><p className="hero-description">用趋势、动量与情绪，寻找市场中的配置平衡。</p></div><span className={`trend ${c.trend}`}><span className="trend-arrow">{c.trend === "up" ? "↗" : "↘"}</span><span><b>{c.trend === "up" ? "上涨趋势" : "下跌趋势"}</b><small>{c.rsiFrame}</small></span></span></div>
-          <div className={`data-notice ${stale ? "stale" : ""}`} role="status"><i /><span>{stale ? "更新延迟 · 当前保留最后一次真实行情" : "行情快照"}<span className="notice-divider">/</span>更新于 <time>{updatedLabel}</time> <small>UTC+8</small>{error && <span className="notice-error"> · {error}</span>}</span></div>
-          <noscript><div className="data-notice stale">已显示发布时的真实行情。启用 JavaScript 可刷新数据与查看历史曲线。</div></noscript>
+          <div className="hero-title"><div><p className="eyebrow"><span />BITCOIN POSITION MODEL</p><h1>{t.headline}<span>{language === "zh" ? "。" : "."}</span></h1><p className="hero-description">{t.description}</p></div><span className={`trend ${c.trend}`}><span className="trend-arrow">{c.trend === "up" ? "↗" : "↘"}</span><span><b>{c.trend === "up" ? t.up : t.down}</b><small>{rsiFrame}</small></span></span></div>
+          <div className={`data-notice ${stale ? "stale" : ""}`} role="status"><i /><span>{stale ? t.stale : t.snapshot}<span className="notice-divider">/</span>{t.updated} <time>{updatedLabel}</time> <small>UTC+8</small>{error && <span className="notice-error"> · {t.refreshError}</span>}</span></div>
+          <noscript><div className="data-notice stale">{t.noScript}</div></noscript>
           <div className="overview-grid">
-            <article className="gauge-card"><div className="card-kicker"><span><i className="card-dot" />模型参考仓位</span><i>ALLOCATION</i></div><Gauge value={c.position} /><div className="allocation"><span style={{ width: `${c.position}%` }} /></div><div className="allocation-label"><span><i className="allocation-dot" />BTC <b>{c.position.toFixed(1)}%</b></span><span><i />现金 <b>{(100 - c.position).toFixed(1)}%</b></span></div><div className="gauge-footnote"><Icon name="layers" /><span>由 RSI 与恐贪指数共同计算</span><span>Φ(z)</span></div></article>
-            <article className="price-card"><div className="asset-line"><span className="coin">₿</span><div><b>Bitcoin <span>BTC</span></b><small>BTC / USDT · 现货市场</small></div><i>BINANCE <span>↗</span></i></div><div className="price-line"><h2>{money(c.price)}</h2><span className={positive ? "positive" : "negative"}>{positive ? "↗ +" : "↘ "}{c.change24h.toFixed(2)}%<small>24H</small></span></div><div className="price-range"><span>24h 最低 <b>{money(c.low24h)}</b></span><i /><span>24h 最高 <b>{money(c.high24h)}</b></span></div><div className="metrics"><div><span>趋势基准 <small>MA200</small></span><b>{money(c.ma200)}</b><p><i className={c.trend} />{c.trend === "up" ? "现价位于均线上方" : "现价位于均线下方"}</p></div><div><span>动量指标 <small>RSI · 14</small></span><b>{c.rsi.toFixed(1)}<em>{c.trend === "up" ? "月线" : "周线"}</em></b><p>{c.rsi < 30 ? "超卖区间" : c.rsi > 70 ? "超买区间" : "中性区间"}</p></div><div><span>市场情绪 <small>F&G</small></span><b>{c.fear}<em>/ 100</em></b><p>{fearLabel}</p></div></div><div className="formula"><span>今日 Z 值</span><code>(100 − {c.rsi.toFixed(1)} − {c.fear}) × 0.03</code><b>{c.z.toFixed(3)}</b></div></article>
+            <article className="gauge-card"><div className="card-kicker"><span><i className="card-dot" />{t.position}</span><i>ALLOCATION</i></div><Gauge value={c.position} language={language} /><div className="allocation"><span style={{ width: `${c.position}%` }} /></div><div className="allocation-label"><span><i className="allocation-dot" />BTC <b>{c.position.toFixed(1)}%</b></span><span><i />{t.cash} <b>{(100 - c.position).toFixed(1)}%</b></span></div><div className="gauge-footnote"><Icon name="layers" /><span>{t.gaugeNote}</span><span>Φ(z)</span></div></article>
+            <article className="price-card"><div className="asset-line"><span className="coin">₿</span><div><b>Bitcoin <span>BTC</span></b><small>BTC / USDT · {t.spot}</small></div><i>BINANCE <span>↗</span></i></div><div className="price-line"><h2>{money(c.price)}</h2><span className={positive ? "positive" : "negative"}>{positive ? "↗ +" : "↘ "}{c.change24h.toFixed(2)}%<small>24H</small></span></div><div className="price-range"><span>{t.low} <b>{money(c.low24h)}</b></span><i /><span>{t.high} <b>{money(c.high24h)}</b></span></div><div className="metrics"><div><span>{t.trendBase} <small>MA200</small></span><b>{money(c.ma200)}</b><p><i className={c.trend} />{c.trend === "up" ? t.above : t.below}</p></div><div><span>{t.momentum} <small>RSI · 14 · {c.trend === "up" ? t.monthly : t.weekly}</small></span><b className="rsi-value">{c.rsi.toFixed(1)}</b><p>{c.rsi < 30 ? t.oversold : c.rsi > 70 ? t.overbought : t.neutral}</p></div><div><span>{t.sentiment} <small>F&G · / 100</small></span><b>{c.fear}</b><p>{fearLabel}</p></div></div><div className="formula"><span>{t.todayZ}</span><code>(100 − {c.rsi.toFixed(1)} − {c.fear}) × 0.03</code><b>{c.z.toFixed(3)}</b></div></article>
           </div>
         </section>
-        <section className="history-section" id="history"><div className="section-head"><div><p className="eyebrow">MARKET PERSPECTIVE</p><h2>价格与仓位的对话<span>历史关系</span></h2></div><div className="range-tabs" aria-label="图表时间范围">{ranges.map(item => <button key={item.days} className={range === item.days ? "active" : ""} aria-pressed={range === item.days} onClick={() => setRange(item.days)}>{item.label}</button>)}</div></div><article className="chart-card"><TrendChart data={chartData} /><div className="chart-bottom"><span><i className="price-dot" />BTC 价格 <small>左轴 · USD</small></span><span><i className="position-dot" />参考仓位 <small>右轴 · %</small></span><p>移动或轻触图表，查看每日数据</p></div></article></section>
-        <section className="method-section" id="method"><div className="method-copy"><p className="eyebrow">BEHIND THE NUMBER</p><h2>一个数字，<br />三重市场视角。</h2><p>把复杂的市场信号，转化为可理解、可追溯的仓位参考。</p><span className="method-tag"><Icon name="shield" />透明计算，不添加主观判断</span></div><div className="steps"><div><i>01</i><span><b>趋势决定观察视角</b><p>价格 ≥ 200 日均线为上涨趋势，否则为下跌趋势。</p></span><Icon name="chart" /></div><div><i>02</i><span><b>动量与情绪共同衡量</b><p>上涨看月线、下跌看周线 Wilder RSI(14)，结合恐贪指数。包含 UTC 当期未收盘值。</p></span><Icon name="layers" /></div><div><i>03</i><span><b>标准正态分布映射仓位</b><p>仓位 = Φ((100 − RSI − 恐贪指数) × 0.03)</p></span><Icon name="grid" /></div></div></section>
+        <section className="history-section" id="history">
+          <div className="section-head"><div><p className="eyebrow">MARKET PERSPECTIVE</p><h2>{t.chartTitle}<span>{t.chartSubtitle}</span></h2></div><p className="history-availability">{t.available}<b>{market.history[0].date} — {market.history.at(-1)!.date}</b><span>{total.toLocaleString(language === "zh" ? "zh-CN" : "en-US")} {t.observations}</span></p></div>
+          <article className="chart-card" data-window-count={visibleCount}>
+            <div className="chart-toolbar"><div className="range-tabs" role="group" aria-label={t.timeRange}>{rangeOptions.map(days => {
+              const selected = end === total - 1 && (days === Infinity ? visibleCount === total : visibleCount === days);
+              return <button key={String(days)} className={selected ? "active" : ""} aria-pressed={selected} onClick={() => setView({ count: days, end: null })}>{rangeLabel(days, language)}</button>;
+            })}</div><div className="zoom-controls" role="group" aria-label={t.timeRange}>
+              <button aria-label={t.earlier} title={t.earlier} disabled={start === 0} onClick={() => setView(moveWindow(total, view, end - Math.max(1, Math.round(visibleCount / 4))))}>‹</button>
+              <button aria-label={t.zoomOut} title={t.zoomOut} disabled={visibleCount >= total} onClick={() => setView(zoomWindow(total, view, 2))}>−</button>
+              <button aria-label={t.zoomIn} title={t.zoomIn} disabled={visibleCount <= 14} onClick={() => setView(zoomWindow(total, view, .5))}>+</button>
+              <button aria-label={t.later} title={t.later} disabled={end === total - 1} onClick={() => setView(moveWindow(total, view, end + Math.max(1, Math.round(visibleCount / 4))))}>›</button>
+              <button className="reset-button" title={t.resetHint} onClick={() => setView({ count: 90, end: null })}>↺ <span>{t.reset}</span></button>
+            </div></div>
+            <TrendChart data={chartData} language={language} />
+            <div className="timeline"><div className="timeline-info"><span>{t.visible}</span><output aria-live="polite">{chartData[0].date} — {chartData.at(-1)!.date}</output><b>{visibleCount.toLocaleString()} {t.observations}</b></div><input type="range" min={visibleCount - 1} max={total - 1} value={end} disabled={visibleCount >= total} aria-label={t.timeline} aria-valuetext={`${chartData[0].date} — ${chartData.at(-1)!.date}`} onChange={event => setView(moveWindow(total, view, Number(event.target.value)))} /><div className="timeline-ends"><span>{market.history[0].date}</span><span>{t.timelineHint}</span><span>{market.history.at(-1)!.date}</span></div></div>
+            <div className="chart-bottom"><span><i className="price-dot" />{t.price} <small>{t.leftAxis}</small></span><span><i className="position-dot" />{t.allocation} <small>{t.rightAxis}</small></span><p>{t.chartHint}</p></div>
+          </article>
+        </section>
+        <section className="method-section" id="method"><div className="method-copy"><p className="eyebrow">BEHIND THE NUMBER</p><h2>{t.methodTitle}</h2><p>{t.methodDescription}</p><span className="method-tag"><Icon name="shield" />{t.methodTag}</span></div><div className="steps"><div><i>01</i><span><b>{t.step1}</b><p>{t.step1Body}</p></span><Icon name="chart" /></div><div><i>02</i><span><b>{t.step2}</b><p>{t.step2Body}</p></span><Icon name="layers" /></div><div><i>03</i><span><b>{t.step3}</b><p>{t.step3Body}</p></span><Icon name="grid" /></div></div></section>
       </main>
-      <footer><div><b>POSITION <span>/ BTC</span></b><p>数据：{market.meta.priceSource} · {market.meta.fearSource}</p><p>恐贪日期 {market.meta.fearUpdatedAt.slice(0, 10)} · MA200 使用前 200 个已收盘日线</p></div><span>仅供量化观察与仓位参考<br />不构成投资建议</span></footer>
+      <footer><div><b>POSITION <span>/ BTC</span></b><p>{t.sources}: {market.meta.priceSource} · {market.meta.fearSource}</p><p>{t.fearDate} {market.meta.fearUpdatedAt.slice(0, 10)} · {t.maNote}</p></div><span>{t.disclaimer}<br />{t.risk}</span></footer>
     </div>
   </div>;
 }

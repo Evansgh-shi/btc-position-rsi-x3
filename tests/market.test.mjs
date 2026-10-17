@@ -32,6 +32,7 @@ test("historical positions do not use future prices or fear values", () => {
   assert.deepEqual(a.history.slice(0,-1), b.history.slice(0,-1));
   assert.notEqual(a.current.position, b.current.position);
   assert.ok(isMarketData(a));
+  assert.ok(a.history.length > 366, "history must no longer be capped at one year");
 });
 
 test("invalid, stale or missing data cannot become a valid position", () => {
