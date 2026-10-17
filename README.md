@@ -24,6 +24,10 @@ Z = (100 − RSI(14) − 恐贪指数) × 0.03
 
 ## 在线访问
 
+支持右上角中文 / English 切换并记住选择。BTC 价格与 RSI 使用相同的数字字号。
+历史数据保留恐贪指数与价格的完整共同可用区间（满足月线 RSI 预热后，当前始于 2018-10）。
+图表提供 30 天、90 天、半年、1 年、3 年、5 年、全部范围；+ / − 缩放，‹ / › 与时间滑块平移，重置返回最近 90 天。
+
 - [公开站点](https://btc-position-rsi-x3.hakimi666.chatgpt.site)
 - [GitHub Pages](https://evansgh-shi.github.io/btc-position-rsi-x3/)
 
