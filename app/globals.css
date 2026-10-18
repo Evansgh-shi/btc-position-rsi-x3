@@ -15,6 +15,7 @@
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.spinning{animation:none}*,*:before,*:after{transition:none!important}}
 
 /* Readable bilingual typography and a shared scale for price / RSI. */
+.sentiment-source{display:flex;align-items:center;flex-wrap:wrap;gap:8px 20px;font-size:12px;line-height:1.9;color:#98a6b7;margin-top:17px}.sentiment-source a{color:var(--gold);text-decoration:underline;text-underline-offset:4px}.sentiment-source time{font-family:var(--mono)}.history-source-note{font-size:12px;color:#9daabd;line-height:1.9;border-left:2px solid #6fc8ac6b;padding:8px 12px;margin:0 4px 20px;background:#6fc8ac04}.history-source-note b{font:13px var(--mono);color:var(--green)}
 .asset-line>i>span{font-size:12px}
 :root{--number-size:38px}
 body{font-size:15px}.app{grid-template-columns:230px minmax(0,1fr)}.main-content{padding:0 36px}
