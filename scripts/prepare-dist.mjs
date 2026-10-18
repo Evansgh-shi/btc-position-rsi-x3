@@ -39,7 +39,7 @@ if (process.env.DEPLOY_TARGET !== "github") {
   }
   embed(output);
   const model=readFileSync("lib/market-model.mjs","utf8").replaceAll("export function", "function");
-  const collector=readFileSync("lib/collect-market.mjs","utf8").replace(/^import .*;\r?\n/gm, "").replaceAll("export async function", "async function");
+  const collector=readFileSync("lib/collect-market.mjs","utf8").replace(/^import .*;\r?\n/gm, "").replaceAll("export async function", "async function").replaceAll("export function", "function");
   mkdirSync(join(output,"server"),{recursive:true});
   mkdirSync(join(output,".openai"),{recursive:true});
   copyFileSync(".openai/hosting.json",join(output,".openai/hosting.json"));
