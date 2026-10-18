@@ -100,15 +100,24 @@ function TrendChart({ data, language }: { data: Point[]; language: Language }) {
     gradient.addColorStop(0, "rgba(212,183,129,.13)"); gradient.addColorStop(1, "rgba(212,183,129,0)");
     ctx.beginPath(); data.forEach((p, i) => i ? ctx.lineTo(x(i), yp(p.price)) : ctx.moveTo(x(i), yp(p.price)));
     ctx.lineTo(x(data.length - 1), height - pad.b); ctx.lineTo(x(0), height - pad.b); ctx.closePath(); ctx.fillStyle = gradient; ctx.fill();
-    const line = (project: (p: Point) => number, color: string) => {
-      ctx.beginPath(); data.forEach((p, i) => i ? ctx.lineTo(x(i), project(p)) : ctx.moveTo(x(i), project(p)));
+    const line = (project: (p: Point) => number | null, color: string) => {
+      let started = false;
+      ctx.beginPath(); data.forEach((p, i) => {
+        const y = project(p);
+        if (y === null) { started = false; return; }
+        if (started) ctx.lineTo(x(i), y); else ctx.moveTo(x(i), y);
+        started = true;
+      });
       ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.lineJoin = "round"; ctx.stroke();
     };
-    line(p => yp(p.price), "#d4b781"); line(p => yv(p.position), "#6fc8ac");
+    line(p => yp(p.price), "#d4b781"); line(p => p.position === null ? null : yv(p.position), "#6fc8ac");
     if (hover !== null && data[hover]) {
       ctx.beginPath(); ctx.moveTo(x(hover), pad.t); ctx.lineTo(x(hover), height - pad.b);
       ctx.strokeStyle = "#65707c"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.stroke(); ctx.setLineDash([]);
-      for (const [y, color] of [[yp(data[hover].price), "#d4b781"], [yv(data[hover].position), "#6fc8ac"]] as const) {
+      const point = data[hover];
+      const markers: [number, string][] = [[yp(point.price), "#d4b781"]];
+      if (point.position !== null) markers.push([yv(point.position), "#6fc8ac"]);
+      for (const [y, color] of markers) {
         ctx.beginPath(); ctx.arc(x(hover), y, 4, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
         ctx.strokeStyle = "#12161b"; ctx.lineWidth = 2; ctx.stroke();
       }
@@ -117,7 +126,7 @@ function TrendChart({ data, language }: { data: Point[]; language: Language }) {
 
   const active = data[hover ?? data.length - 1] ?? data.at(-1);
   return <>
-    {active && <div className="chart-readout" aria-live="polite"><time dateTime={active.date}>{active.date}</time><span><i className="price-dot" />{t.price} <b>{money(active.price)}</b></span><span><i className="position-dot" />{t.allocation} <b>{active.position.toFixed(1)}%</b></span></div>}
+    {active && <div className="chart-readout" aria-live="polite"><time dateTime={active.date}>{active.date}</time><span><i className="price-dot" />{t.price} <b>{money(active.price)}</b></span><span><i className="position-dot" />{t.allocation} <b>{active.position === null ? t.noCmcData : `${active.position.toFixed(1)}%`}</b></span></div>}
     <div className="chart-shell"><canvas ref={canvasRef} role="img" tabIndex={0} aria-label={t.chartAria}
       onPointerMove={event => {
         const rect = event.currentTarget.getBoundingClientRect();
@@ -191,8 +200,9 @@ export default function Dashboard({ initialData }: { initialData: MarketData }) 
   const chartData = useMemo(() => market.history.slice(start, end + 1), [market.history, start, end]);
   const stale = now - Date.parse(market.meta.updatedAt) > 6 * 60 * 60 * 1000;
   const updatedLabel = new Date(market.meta.updatedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-GB", { timeZone: "Asia/Shanghai", hour12: false });
+  const fearUpdatedLabel = new Date(market.meta.fearUpdatedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-GB", { timeZone: "Asia/Shanghai", hour12: false });
   const c = market.current, positive = c.change24h >= 0;
-  const fearLabel = c.fear < 25 ? t.extremeFear : c.fear < 45 ? t.fear : c.fear < 56 ? t.neutralFear : c.fear < 75 ? t.greed : t.extremeGreed;
+  const fearLabel = c.fear < 20 ? t.extremeFear : c.fear < 40 ? t.fear : c.fear < 60 ? t.neutralFear : c.fear < 80 ? t.greed : t.extremeGreed;
   const rsiFrame = c.trend === "up" ? t.monthlyRsi : t.weeklyRsi;
   return <div className="app">
     <a className="skip-link" href="#overview">{t.skip}</a>
@@ -213,6 +223,7 @@ export default function Dashboard({ initialData }: { initialData: MarketData }) 
             <article className="gauge-card"><div className="card-kicker"><span><i className="card-dot" />{t.position}</span><i>ALLOCATION</i></div><Gauge value={c.position} language={language} /><div className="allocation"><span style={{ width: `${c.position}%` }} /></div><div className="allocation-label"><span><i className="allocation-dot" />BTC <b>{c.position.toFixed(1)}%</b></span><span><i />{t.cash} <b>{(100 - c.position).toFixed(1)}%</b></span></div><div className="gauge-footnote"><Icon name="layers" /><span>{t.gaugeNote}</span><span>Φ(z)</span></div></article>
             <article className="price-card"><div className="asset-line"><span className="coin">₿</span><div><b>Bitcoin <span>BTC</span></b><small>BTC / USDT · {t.spot}</small></div><i>BINANCE <span>↗</span></i></div><div className="price-line"><h2>{money(c.price)}</h2><span className={positive ? "positive" : "negative"}>{positive ? "↗ +" : "↘ "}{c.change24h.toFixed(2)}%<small>24H</small></span></div><div className="price-range"><span>{t.low} <b>{money(c.low24h)}</b></span><i /><span>{t.high} <b>{money(c.high24h)}</b></span></div><div className="metrics"><div><span>{t.trendBase} <small>MA200</small></span><b>{money(c.ma200)}</b><p><i className={c.trend} />{c.trend === "up" ? t.above : t.below}</p></div><div><span>{t.momentum} <small>RSI · 14 · {c.trend === "up" ? t.monthly : t.weekly}</small></span><b className="rsi-value">{c.rsi.toFixed(1)}</b><p>{c.rsi < 30 ? t.oversold : c.rsi > 70 ? t.overbought : t.neutral}</p></div><div><span>{t.sentiment} <small>F&G · / 100</small></span><b>{c.fear}</b><p>{fearLabel}</p></div></div><div className="formula"><span>{t.todayZ}</span><code>(100 − {c.rsi.toFixed(1)} − {c.fear}) × 0.03</code><b>{c.z.toFixed(3)}</b></div></article>
           </div>
+          <div className="sentiment-source"><a href={market.meta.fearSourceUrl} target="_blank" rel="noopener noreferrer">{t.cmcSource} ↗</a><span>{t.updated} <time dateTime={market.meta.fearUpdatedAt}>{fearUpdatedLabel}</time> UTC+8</span><span>{t.binanceSameSource}</span></div>
         </section>
         <section className="history-section" id="history">
           <div className="section-head"><div><p className="eyebrow">MARKET PERSPECTIVE</p><h2>{t.chartTitle}<span>{t.chartSubtitle}</span></h2></div><p className="history-availability">{t.available}<b>{market.history[0].date} — {market.history.at(-1)!.date}</b><span>{total.toLocaleString(language === "zh" ? "zh-CN" : "en-US")} {t.observations}</span></p></div>
@@ -227,6 +238,7 @@ export default function Dashboard({ initialData }: { initialData: MarketData }) 
               <button aria-label={t.later} title={t.later} disabled={end === total - 1} onClick={() => setView(moveWindow(total, view, end + Math.max(1, Math.round(visibleCount / 4))))}>›</button>
               <button className="reset-button" title={t.resetHint} onClick={() => setView({ count: 90, end: null })}>↺ <span>{t.reset}</span></button>
             </div></div>
+            <p className="history-source-note">{t.cmcHistorySince} <b>{market.meta.fearHistoryStart}</b> · {t.cmcHistoryNote}</p>
             <TrendChart data={chartData} language={language} />
             <div className="timeline"><div className="timeline-info"><span>{t.visible}</span><output aria-live="polite">{chartData[0].date} — {chartData.at(-1)!.date}</output><b>{visibleCount.toLocaleString()} {t.observations}</b></div><input type="range" min={visibleCount - 1} max={total - 1} value={end} disabled={visibleCount >= total} aria-label={t.timeline} aria-valuetext={`${chartData[0].date} — ${chartData.at(-1)!.date}`} onChange={event => setView(moveWindow(total, view, Number(event.target.value)))} /><div className="timeline-ends"><span>{market.history[0].date}</span><span>{t.timelineHint}</span><span>{market.history.at(-1)!.date}</span></div></div>
             <div className="chart-bottom"><span><i className="price-dot" />{t.price} <small>{t.leftAxis}</small></span><span><i className="position-dot" />{t.allocation} <small>{t.rightAxis}</small></span><p>{t.chartHint}</p></div>

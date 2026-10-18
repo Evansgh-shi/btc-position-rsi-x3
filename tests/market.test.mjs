@@ -22,12 +22,13 @@ function fixture() {
   const daily = Array.from({length:count}, (_, i) => [start+i*day,0,0,0,String(40000+i*10+3000*Math.sin(i/30))]);
   const fearItems = Array.from({length:400}, (_, i) => ({timestamp:String((start+(count-1-i)*day)/1000),value:String(30+i%40)}));
   const ticker = {lastPrice:daily.at(-1)[4],priceChangePercent:'1.2',highPrice:'60000',lowPrice:'40000',closeTime:now};
-  return { daily, fearItems, ticker, fetchedAt:now, endpoint:'test' };
+  const fearLatest={timestamp:now/1000,value:30};
+  return { daily, fearItems, fearLatest, ticker, fetchedAt:now, endpoint:'test' };
 }
 
 test("historical positions do not use future prices or fear values", () => {
   const f = fixture(), a = buildMarketData(f);
-  f.daily.at(-1)[4] = '99999'; f.ticker.lastPrice = '99999'; f.fearItems[0].value = '99';
+  f.daily.at(-1)[4] = '99999'; f.ticker.lastPrice = '99999'; f.fearItems[0].value = '99'; f.fearLatest.value = 99;
   const b = buildMarketData(f);
   assert.deepEqual(a.history.slice(0,-1), b.history.slice(0,-1));
   assert.notEqual(a.current.position, b.current.position);
@@ -41,4 +42,28 @@ test("invalid, stale or missing data cannot become a valid position", () => {
   assert.throws(() => buildMarketData({...f,ticker:{...f.ticker,closeTime:0}}), /过期/);
   assert.throws(() => buildMarketData({...f,daily:f.daily.slice(0,300)}), /不足/);
   assert.equal(isMarketData({meta:{degraded:true}}), false);
+  assert.throws(() => buildMarketData({...f,fearLatest:{...f.fearLatest,timestamp:f.fearLatest.timestamp-7201}}), /当前恐贪/);
+  assert.throws(() => buildMarketData({...f,fearLatest:{...f.fearLatest,timestamp:f.fearLatest.timestamp+1}}), /当前恐贪/);
+});
+
+test('pre-CMC dates retain price but never contain fabricated allocation', () => {
+  const f=fixture(), data=buildMarketData(f), first=data.meta.fearHistoryStart;
+  const early=data.history.filter(p=>p.date<first);
+  assert.ok(early.length>0);
+  for(const p of early){assert.ok(p.price>0);assert.equal(p.position,null);assert.equal(p.fear,null);assert.equal(p.z,null);}
+  assert.ok(data.history.filter(p=>p.date>=first).every(p=>p.position!==null));
+  const invalid=structuredClone(data);invalid.history[0].position=50;
+  assert.equal(isMarketData(invalid),false);
+});
+
+test('current allocation uses live CMC value without rewriting completed daily history', () => {
+  const f=fixture(), a=buildMarketData(f);
+  f.fearLatest.value=49;
+  const b=buildMarketData(f);
+  assert.deepEqual(a.history.slice(0,-1),b.history.slice(0,-1));
+  assert.equal(b.current.fear,49);
+  assert.ok(Math.abs(b.current.position-normalCdf((100-b.current.rsi-49)*.03)*100)<1e-10);
+  assert.equal(b.meta.fearUpdatedAt,new Date(f.fearLatest.timestamp*1000).toISOString());
+  assert.equal(isMarketData({...b,meta:{...b.meta,schemaVersion:2}}),false);
+  assert.equal(isMarketData({...b,meta:{...b.meta,fearSourceId:'alternative'}}),false);
 });

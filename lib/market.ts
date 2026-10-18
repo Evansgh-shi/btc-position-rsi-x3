@@ -1,6 +1,6 @@
 import { isMarketData, type MarketData } from "./market-model.mjs";
 export type { Point, MarketData } from "./market-model.mjs";
-const CACHE_KEY = "btc-position-real-market-v2";
+const CACHE_KEY = "btc-position-real-market-v3-cmc";
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const SHARED_SNAPSHOT = "https://evansgh-shi.github.io/btc-position-rsi-x3/data/market.json";
 
