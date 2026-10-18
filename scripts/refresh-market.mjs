@@ -5,4 +5,6 @@ mkdirSync("public/data", { recursive: true });
 writeFileSync("public/data/market.json.tmp", JSON.stringify(snapshot));
 renameSync("public/data/market.json.tmp", "public/data/market.json");
 console.log(JSON.stringify({ updatedAt: snapshot.meta.updatedAt, price: snapshot.current.price,
-  position: snapshot.current.position, rsi: snapshot.current.rsi, history: snapshot.history.length, endpoint: snapshot.meta.endpoint }));
+  position: snapshot.current.position, rsi: snapshot.current.rsi, history: snapshot.history.length, endpoint: snapshot.meta.endpoint,
+  fear: snapshot.current.fear, fearSource: snapshot.meta.fearSource, fearUpdatedAt: snapshot.meta.fearUpdatedAt,
+  fearHistoryStart: snapshot.meta.fearHistoryStart, allocationPoints: snapshot.history.filter(p=>p.position!==null).length }));
